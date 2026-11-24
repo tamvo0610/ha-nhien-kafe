@@ -2,8 +2,7 @@
 // PostgreSQL with Prisma ORM
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["partialIndexes"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -163,7 +162,7 @@ model CustomerSession {
   updatedAt      DateTime              @updatedAt
 
   // Relations
-  orderRequests CustomerNotification[]
+  notifications CustomerNotification[]
   orders        Order[]
   requests      OrderRequest[]
 
@@ -236,8 +235,7 @@ model DiningSession {
   orders        Order[]
   orderRequests OrderRequest[]
 
-  // Constraint: One ACTIVE session per table
-  @@unique([tableId, status], where: { status: "ACTIVE" }, name: "one_active_session_per_table")
+  // Constraint: One ACTIVE session per table (enforced at database level)
   @@index([tableId, status])
   @@index([status])
   @@map("dining_sessions")
@@ -583,7 +581,7 @@ model StoreSetting {
   key       String   @unique
   value     Json
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   @@map("store_settings")
 }
