@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+/**
+ * Nhiên POS Design Tokens
+ * Modern Street Food - Minimal & Warm
+ */
+:root {
+  /* Brand Colors */
+  --cream: #F8F5EF;
+  --terracotta: #B65C3A;
+  --brown: #453B32;
+  --olive: #82916A;
+
+  /* Semantic Colors - Light Mode */
+  --background: #FFFFFF;
+  --surface: var(--cream);
+  --foreground: var(--brown);
+  --primary: var(--terracotta);
+  --secondary: var(--olive);
+  --muted: #E5E5E5;
+  --border: #D4D4D4;
+
+  /* Status Colors */
+  --success: #10B981;
+  --warning: #F59E0B;
+  --error: #EF4444;
+  --info: #3B82F6;
+}
+
+@theme inline {
+  /* Colors */
+  --color-cream: var(--cream);
+  --color-terracotta: var(--terracotta);
+  --color-brown: var(--brown);
+  --color-olive: var(--olive);
+
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-info: var(--info);
+
+  /* Fonts */
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Spacing for touch targets */
+  --spacing-touch: 44px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #1A1A1A;
+    --surface: #252525;
+    --foreground: var(--cream);
+    --muted: #3A3A3A;
+    --border: #404040;
+  }
+}
+
+:root[data-theme="dark"] {
+  --background: #1A1A1A;
+  --surface: #252525;
+  --foreground: var(--cream);
+  --muted: #3A3A3A;
+  --border: #404040;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Ensure no horizontal overflow on small screens */
+@media (max-width: 360px) {
+  body {
+    overflow-x: hidden;
+  }
+}

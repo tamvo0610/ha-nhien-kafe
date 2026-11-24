@@ -1,0 +1,589 @@
+// Nhiên POS Database Schema
+// PostgreSQL with Prisma ORM
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+// User Management
+// ============================================================================
+
+enum UserRole {
+  ADMIN
+  STAFF
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         UserRole  @default(STAFF)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  createdOrders       Order[]               @relation("CreatedOrders")
+  reviewedRequests    OrderRequest[]        @relation("ReviewedRequests")
+  createdPayments     Payment[]             @relation("CreatedPayments")
+  confirmedPayments   Payment[]             @relation("ConfirmedPayments")
+  orderEvents         OrderEvent[]
+  openedSessions      DiningSession[]       @relation("OpenedSessions")
+  closedSessions      DiningSession[]       @relation("ClosedSessions")
+  cancelledOrders     Order[]               @relation("CancelledOrders")
+
+  @@index([email])
+  @@index([role, isActive])
+  @@map("users")
+}
+
+// ============================================================================
+// Product Catalog
+// ============================================================================
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  imageUrl    String?
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  products Product[]
+
+  @@index([isActive, sortOrder])
+  @@index([slug])
+  @@map("categories")
+}
+
+model Product {
+  id          String    @id @default(cuid())
+  categoryId  String
+  name        String
+  slug        String    @unique
+  description String?
+  imageUrl    String?
+  price       Int // VND as integer
+  costPrice   Int? // Optional for profit tracking
+  isActive    Boolean   @default(true)
+  isAvailable Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  category     Category              @relation(fields: [categoryId], references: [id])
+  optionGroups ProductOptionGroup[]
+  orderItems   OrderItem[]
+  requestItems OrderRequestItem[]
+
+  @@index([categoryId, isActive, isAvailable])
+  @@index([slug])
+  @@map("products")
+}
+
+enum SelectionType {
+  SINGLE
+  MULTIPLE
+}
+
+model ProductOptionGroup {
+  id            String        @id @default(cuid())
+  productId     String
+  name          String
+  selectionType SelectionType @default(SINGLE)
+  isRequired    Boolean       @default(false)
+  minSelections Int?
+  maxSelections Int?
+  sortOrder     Int           @default(0)
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  product Product          @relation(fields: [productId], references: [id])
+  options ProductOption[]
+
+  @@index([productId, isActive])
+  @@map("product_option_groups")
+}
+
+model ProductOption {
+  id              String   @id @default(cuid())
+  groupId         String
+  name            String
+  additionalPrice Int      @default(0) // VND as integer
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  group               ProductOptionGroup      @relation(fields: [groupId], references: [id])
+  orderItemOptions    OrderItemOption[]
+  requestItemOptions  OrderRequestItemOption[]
+
+  @@index([groupId, isActive])
+  @@map("product_options")
+}
+
+// ============================================================================
+// Customer Sessions
+// ============================================================================
+
+enum CustomerSessionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+model CustomerSession {
+  id             String                @id @default(cuid())
+  tokenHash      String                @unique // Never store raw token
+  status         CustomerSessionStatus @default(ACTIVE)
+  customerName   String?
+  customerPhone  String?
+  expiresAt      DateTime
+  lastActiveAt   DateTime              @default(now())
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  // Relations
+  orderRequests CustomerNotification[]
+  orders        Order[]
+  requests      OrderRequest[]
+
+  @@index([tokenHash])
+  @@index([status, expiresAt])
+  @@map("customer_sessions")
+}
+
+// ============================================================================
+// Tables & Dining Sessions
+// ============================================================================
+
+model Table {
+  id        String    @id @default(cuid())
+  code      String    @unique // e.g., T01, T02
+  name      String
+  capacity  Int?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  qrTokens      TableQrToken[]
+  diningSessions DiningSession[]
+
+  @@index([code])
+  @@index([isActive])
+  @@map("tables")
+}
+
+model TableQrToken {
+  id         String    @id @default(cuid())
+  tableId    String
+  tokenHash  String    @unique // High-entropy token hash
+  isActive   Boolean   @default(true)
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Relations
+  table Table @relation(fields: [tableId], references: [id])
+
+  @@index([tokenHash])
+  @@index([tableId, isActive])
+  @@map("table_qr_tokens")
+}
+
+enum DiningSessionStatus {
+  ACTIVE
+  CLOSING
+  CLOSED
+}
+
+model DiningSession {
+  id         String              @id @default(cuid())
+  tableId    String
+  status     DiningSessionStatus @default(ACTIVE)
+  openedAt   DateTime            @default(now())
+  closedAt   DateTime?
+  openedById String
+  closedById String?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  // Relations
+  table         Table          @relation(fields: [tableId], references: [id])
+  openedBy      User           @relation("OpenedSessions", fields: [openedById], references: [id])
+  closedBy      User?          @relation("ClosedSessions", fields: [closedById], references: [id])
+  orders        Order[]
+  orderRequests OrderRequest[]
+
+  // Constraint: One ACTIVE session per table
+  @@unique([tableId, status], where: { status: "ACTIVE" }, name: "one_active_session_per_table")
+  @@index([tableId, status])
+  @@index([status])
+  @@map("dining_sessions")
+}
+
+// ============================================================================
+// Order Requests (Public Ordering)
+// ============================================================================
+
+enum OrderRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+}
+
+enum OrderSource {
+  STAFF
+  PUBLIC
+}
+
+model OrderRequest {
+  id               String             @id @default(cuid())
+  requestNumber    String             @unique
+  status           OrderRequestStatus @default(PENDING)
+  orderType        OrderType
+  source           OrderSource        @default(PUBLIC)
+  customerSessionId String?
+  diningSessionId  String?
+  customerName     String
+  customerPhone    String?
+  customerNote     String?
+  requestedTotal   Int // Server-calculated snapshot in VND
+  acceptedOrderId  String?            @unique
+  reviewedById     String?
+  reviewedAt       DateTime?
+  rejectionReason  String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  // Relations
+  customerSession CustomerSession?    @relation(fields: [customerSessionId], references: [id])
+  diningSession   DiningSession?      @relation(fields: [diningSessionId], references: [id])
+  reviewedBy      User?               @relation("ReviewedRequests", fields: [reviewedById], references: [id])
+  acceptedOrder   Order?              @relation("AcceptedFromRequest", fields: [acceptedOrderId], references: [id])
+  items           OrderRequestItem[]
+
+  @@index([status, createdAt])
+  @@index([customerSessionId])
+  @@index([diningSessionId])
+  @@index([requestNumber])
+  @@map("order_requests")
+}
+
+model OrderRequestItem {
+  id                  String   @id @default(cuid())
+  requestId           String
+  productId           String?
+  productNameSnapshot String
+  unitPriceSnapshot   Int // VND
+  quantity            Int
+  note                String?
+  lineSubtotal        Int // VND
+  createdAt           DateTime @default(now())
+
+  // Relations
+  request OrderRequest             @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  product Product?                 @relation(fields: [productId], references: [id])
+  options OrderRequestItemOption[]
+
+  @@index([requestId])
+  @@map("order_request_items")
+}
+
+model OrderRequestItemOption {
+  id                       String   @id @default(cuid())
+  requestItemId            String
+  productOptionId          String?
+  optionGroupNameSnapshot  String
+  optionNameSnapshot       String
+  additionalPriceSnapshot  Int // VND
+  quantity                 Int      @default(1)
+  createdAt                DateTime @default(now())
+
+  // Relations
+  requestItem   OrderRequestItem @relation(fields: [requestItemId], references: [id], onDelete: Cascade)
+  productOption ProductOption?   @relation(fields: [productOptionId], references: [id])
+
+  @@index([requestItemId])
+  @@map("order_request_item_options")
+}
+
+// ============================================================================
+// Orders
+// ============================================================================
+
+enum OrderStatus {
+  OPEN
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PENDING
+  PARTIALLY_PAID
+  PAID
+  OVERPAID
+  REFUNDED
+}
+
+enum FulfillmentStatus {
+  NOT_STARTED
+  PREPARING
+  READY
+  HANDED_OVER
+}
+
+model Order {
+  id                String            @id @default(cuid())
+  orderNumber       String            @unique
+  source            OrderSource       @default(STAFF)
+  orderType         OrderType
+  status            OrderStatus       @default(OPEN)
+  paymentStatus     PaymentStatus     @default(UNPAID)
+  fulfillmentStatus FulfillmentStatus @default(NOT_STARTED)
+  diningSessionId   String?
+  customerSessionId String?
+  customerName      String?
+  customerPhone     String?
+  subtotalAmount    Int // VND
+  discountAmount    Int               @default(0) // VND
+  totalAmount       Int // VND
+  paidAmount        Int               @default(0) // VND
+  remainingAmount   Int // VND
+  createdById       String?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  cancelledById     String?
+  cancelReason      String?
+  version           Int               @default(1) // Optimistic concurrency
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  // Relations
+  diningSession      DiningSession?    @relation(fields: [diningSessionId], references: [id])
+  customerSession    CustomerSession?  @relation(fields: [customerSessionId], references: [id])
+  createdBy          User?             @relation("CreatedOrders", fields: [createdById], references: [id])
+  cancelledBy        User?             @relation("CancelledOrders", fields: [cancelledById], references: [id])
+  items              OrderItem[]
+  payments           Payment[]
+  events             OrderEvent[]
+  acceptedFromRequest OrderRequest?    @relation("AcceptedFromRequest")
+
+  @@index([orderNumber])
+  @@index([status, createdAt])
+  @@index([diningSessionId])
+  @@index([customerSessionId])
+  @@index([paymentStatus])
+  @@index([fulfillmentStatus])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                  String   @id @default(cuid())
+  orderId             String
+  productId           String?
+  productNameSnapshot String
+  unitPriceSnapshot   Int // VND
+  quantity            Int
+  lineSubtotal        Int // VND
+  note                String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations
+  order   Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product?          @relation(fields: [productId], references: [id])
+  options OrderItemOption[]
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model OrderItemOption {
+  id                      String   @id @default(cuid())
+  orderItemId             String
+  productOptionId         String?
+  optionGroupNameSnapshot String
+  optionNameSnapshot      String
+  additionalPriceSnapshot Int // VND
+  quantity                Int      @default(1)
+  createdAt               DateTime @default(now())
+
+  // Relations
+  orderItem     OrderItem      @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  productOption ProductOption? @relation(fields: [productOptionId], references: [id])
+
+  @@index([orderItemId])
+  @@map("order_item_options")
+}
+
+// ============================================================================
+// Payments
+// ============================================================================
+
+enum PaymentMethod {
+  CASH
+  VIETQR
+}
+
+enum PaymentTransactionStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  EXPIRED
+  SUPERSEDED
+  RECONCILED
+}
+
+model Payment {
+  id                String                   @id @default(cuid())
+  orderId           String
+  method            PaymentMethod
+  status            PaymentTransactionStatus @default(PENDING)
+  amount            Int // VND
+  reference         String                   @unique
+  provider          String?
+  providerPaymentId String?
+  createdById       String
+  confirmedById     String?
+  expiresAt         DateTime?
+  metadata          Json? // Store provider-specific data
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  // Relations
+  order        Order                 @relation(fields: [orderId], references: [id])
+  createdBy    User                  @relation("CreatedPayments", fields: [createdById], references: [id])
+  confirmedBy  User?                 @relation("ConfirmedPayments", fields: [confirmedById], references: [id])
+  transactions PaymentTransaction[]
+
+  @@index([orderId])
+  @@index([reference])
+  @@index([status])
+  @@map("payments")
+}
+
+enum TransactionDirection {
+  INBOUND
+  OUTBOUND
+}
+
+model PaymentTransaction {
+  id                     String               @id @default(cuid())
+  paymentId              String?
+  provider               String
+  providerTransactionId  String
+  transactionReference   String?
+  amount                 Int // VND
+  currency               String               @default("VND")
+  direction              TransactionDirection @default(INBOUND)
+  rawPayload             Json? // Minimize sensitive data
+  occurredAt             DateTime
+  receivedAt             DateTime             @default(now())
+  reconciliationStatus   String               @default("pending")
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  // Relations
+  payment Payment? @relation(fields: [paymentId], references: [id])
+
+  @@unique([provider, providerTransactionId])
+  @@index([paymentId])
+  @@index([transactionReference])
+  @@map("payment_transactions")
+}
+
+// ============================================================================
+// Audit & Events
+// ============================================================================
+
+enum ActorType {
+  STAFF
+  CUSTOMER
+  SYSTEM
+  PROVIDER
+}
+
+model OrderEvent {
+  id          String    @id @default(cuid())
+  orderId     String
+  actorType   ActorType
+  actorId     String?
+  eventType   String
+  description String
+  metadata    Json? // Additional context
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([orderId, createdAt])
+  @@index([eventType])
+  @@map("order_events")
+}
+
+// ============================================================================
+// Customer Notifications
+// ============================================================================
+
+model CustomerNotification {
+  id                String   @id @default(cuid())
+  customerSessionId String
+  requestId         String?
+  orderId           String?
+  type              String
+  title             String
+  message           String
+  readAt            DateTime?
+  createdAt         DateTime  @default(now())
+
+  // Relations
+  customerSession CustomerSession @relation(fields: [customerSessionId], references: [id])
+
+  @@index([customerSessionId, createdAt])
+  @@index([readAt])
+  @@map("customer_notifications")
+}
+
+// ============================================================================
+// Store Settings
+// ============================================================================
+
+model StoreSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("store_settings")
+}
