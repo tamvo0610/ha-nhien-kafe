@@ -13,16 +13,12 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "db:generate": "prisma generate",
-    "db:push": "dotenv -e .env.local -- prisma db push",
-    "db:migrate": "dotenv -e .env.local -- prisma migrate dev",
-    "db:migrate:deploy": "dotenv run -f .env -- prisma migrate deploy",
-    "db:migrate:reset": "dotenv -e .env.local -- prisma migrate reset",
-    "db:studio": "dotenv -e .env.local -- prisma studio",
-    "db:seed": "dotenv -e .env.local -- tsx prisma/seed.ts",
-    "supabase:push": "supabase db push --remote",
-    "supabase:migration": "supabase migration new",
-    "supabase:reset": "supabase db reset --remote",
-    "postinstall": "prisma skills sync || exit 0"
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:reset": "prisma migrate reset",
+    "db:studio": "prisma studio",
+    "db:seed": "tsx prisma/seed.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

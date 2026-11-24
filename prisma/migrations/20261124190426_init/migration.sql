@@ -1,6 +1,3 @@
--- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "public";
-
 -- CreateEnum
 CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'STAFF');
 
@@ -616,8 +613,3 @@ ALTER TABLE "order_events" ADD CONSTRAINT "order_events_actorId_fkey" FOREIGN KE
 
 -- AddForeignKey
 ALTER TABLE "customer_notifications" ADD CONSTRAINT "customer_notifications_customerSessionId_fkey" FOREIGN KEY ("customerSessionId") REFERENCES "customer_sessions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- One active dining session per table
-CREATE UNIQUE INDEX "one_active_session_per_table"
-ON "dining_sessions"("tableId", "status")
-WHERE "status" = 'ACTIVE';
